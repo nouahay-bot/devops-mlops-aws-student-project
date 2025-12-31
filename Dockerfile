@@ -9,6 +9,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 # Copier le code
 COPY api/ api/
+COPY tests/ tests/
 
 # Exposer le port
 EXPOSE 5000

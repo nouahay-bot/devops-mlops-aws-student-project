@@ -31,7 +31,9 @@ RUN pip install pytest
 
 # Stage 4: Application Code
 COPY api/ /app/api/
-COPY api/models/ /app/model/   # ⚠️ Chemin corrigé pour copier model.pkl et scaler.pkl
+COPY api/models/model.pkl /app/model/
+COPY api/models/scaler.pkl /app/model/
+ 
 COPY tests/ /app/tests/
 
 # Stage 5: Security & Permissions

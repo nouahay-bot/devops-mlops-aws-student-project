@@ -49,13 +49,5 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
     CMD python -c "import requests; requests.get('http://localhost:5000/health')" || exit 1
 
 # Start application with gunicorn (point to main_app.py)
-CMD ["gunicorn",
-     "--bind", "0.0.0.0:5000",
-     "--workers", "2",
-     "--threads", "2",
-     "--worker-class", "gthread",
-     "--timeout", "60",
-     "--access-logfile", "-",
-     "--error-logfile", "-",
-     "--log-level", "info",
-     "api.main_app:app"]
+CMD ["gunicorn", "--bind", "0.0.0.0:5000", "--workers", "2", "--threads", "2", "--worker-class", "gthread", "--timeout", "60", "--access-logfile", "-", "--error-logfile", "-", "--log-level", "info", "api.main_app:app"]
+

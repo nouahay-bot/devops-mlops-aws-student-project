@@ -18,7 +18,7 @@ X_scaled = scaler.fit_transform(X)
 
 # 4️⃣ Entraînement RandomForest
 clf = RandomForestClassifier(random_state=42)
-clf.fit(X_scaled, y)
+clf.fit(X, y)
 
 # 5️⃣ Sauvegarde
 joblib.dump(clf, os.path.join(MODEL_DIR, 'model.pkl'))

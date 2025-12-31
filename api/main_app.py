@@ -1,90 +1,82 @@
 # api/main_app.py
-from flask import Flask, request, jsonify
-import joblib
 import os
+import joblib
+from flask import Flask, request, jsonify
 from datetime import datetime
+import numpy as np
 
 app = Flask(__name__)
 
-# =========================
-# Chemins vers le modèle
-# =========================
+# ======= Chemins vers le modèle et le scaler =======
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-MODEL_DIR = os.path.join(BASE_DIR, 'models')
-
+MODEL_DIR = os.path.join(BASE_DIR, '..', 'models')
 MODEL_PATH = os.path.join(MODEL_DIR, 'model.pkl')
 SCALER_PATH = os.path.join(MODEL_DIR, 'scaler.pkl')
 
-# =========================
-# Chargement du modèle et du scaler
-# =========================
+# ======= Chargement du modèle et du scaler =======
+model_loaded = False
 try:
     model = joblib.load(MODEL_PATH)
     scaler = joblib.load(SCALER_PATH)
-    MODEL_LOADED = True
+    model_loaded = True
+    print("✅ Model loaded")
 except Exception as e:
-    print(f"⚠️ Erreur chargement modèle ou scaler : {e}")
+    print("❌ Error loading model:", e)
     model = None
     scaler = None
-    MODEL_LOADED = False
 
+# ======= Classes =======
 CLASS_NAMES = ['Setosa', 'Versicolor', 'Virginica']
 
-# =========================
-# Endpoints
-# =========================
+# ======= Routes =======
 
-@app.route('/health', methods=['GET'])
+@app.route("/health", methods=["GET"])
 def health():
     return jsonify({
         "status": "healthy",
-        "model_loaded": MODEL_LOADED,
+        "model_loaded": model_loaded,
         "timestamp": datetime.utcnow().isoformat()
-    })
+    }), 200
 
-
-@app.route('/info', methods=['GET'])
+@app.route("/info", methods=["GET"])
 def info():
     return jsonify({
         "app_name": "Iris Classification API",
-        "model_type": "Random Forest",
+        "model_type": type(model).__name__ if model else "Unknown",
         "classes": CLASS_NAMES,
-        "endpoints": ["/predict", "/health", "/info"]
-    })
+        "endpoints": ["/health", "/info", "/predict"]
+    }), 200
 
-
-@app.route('/predict', methods=['POST'])
+@app.route("/predict", methods=["POST"])
 def predict():
-    if not MODEL_LOADED:
+    if not model_loaded:
         return jsonify({"error": "Model not loaded"}), 503
 
     data = request.get_json()
-    features = data.get('features')
+    if not data or "features" not in data:
+        return jsonify({"error": "Missing 'features' in request"}), 400
 
-    # Validation simple
-    if not features or len(features) != 4:
-        return jsonify({"error": "Invalid input, expected 4 features"}), 400
+    features = data["features"]
+    if not isinstance(features, list) or len(features) != 4:
+        return jsonify({"error": "Features must be a list of 4 numbers"}), 400
 
     try:
-        # Transformation avec scaler
-        features_scaled = scaler.transform([features])
-        class_id = int(model.predict(features_scaled)[0])
-        probabilities = model.predict_proba(features_scaled)[0]
+        features = np.array(features, dtype=float).reshape(1, -1)
+        features_scaled = scaler.transform(features)
+        pred_class_id = model.predict(features_scaled)[0]
+        pred_class_name = CLASS_NAMES[pred_class_id]
+        probs = model.predict_proba(features_scaled)[0]
+        probabilities = {CLASS_NAMES[i]: float(probs[i]) for i in range(len(CLASS_NAMES))}
 
         return jsonify({
-            "prediction": CLASS_NAMES[class_id],
-            "class_id": class_id,
-            "confidence": float(max(probabilities)),
-            "probabilities": dict(zip(CLASS_NAMES, probabilities)),
+            "prediction": pred_class_name,
+            "class_id": int(pred_class_id),
+            "probabilities": probabilities,
             "timestamp": datetime.utcnow().isoformat()
-        })
-
+        }), 200
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
-
-# =========================
-# Run
-# =========================
-if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=5000)
+# ======= Run app =======
+if __name__ == "__main__":
+    app.run(host="0.0.0.0", port=5000)

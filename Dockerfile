@@ -30,7 +30,7 @@ RUN pip install pytest requests
 
 # Copy app, models, tests
 COPY api/ /app/api/
-COPY model/ /app/models/
+COPY model/ /api/models/
 COPY tests/ /app/tests/
 
 # Non-root user

@@ -9,7 +9,7 @@ import logging
 import os
 
 from .model_loader import model_loader  # import relatif correct
-
+model_loader.load_models()
 # ---------------------------------------------------------------------------
 # Configuration du logging
 # ---------------------------------------------------------------------------

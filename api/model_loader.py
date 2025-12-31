@@ -1,5 +1,3 @@
-# api/model_loader.py
-
 import os
 import joblib
 import numpy as np
@@ -40,7 +38,6 @@ class ModelLoader:
         """Fait une prédiction et renvoie (classe, probas, confiance)"""
         if not self.is_loaded:
             return None, None, None
-
         try:
             x_scaled = self.scaler.transform([features])
             probs = self.model.predict_proba(x_scaled)[0]
@@ -53,5 +50,5 @@ class ModelLoader:
             logger.error("Erreur prediction: %s", e)
             return None, None, None
 
-# Créer l'instance unique que main_app importera
+# instance unique
 model_loader = ModelLoader()

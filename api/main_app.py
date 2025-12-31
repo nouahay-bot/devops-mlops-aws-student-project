@@ -1,103 +1,92 @@
-# api/main_app.py
-from flask import Flask, jsonify, request
+from flask import Flask, request, jsonify
+from pathlib import Path
+import joblib
 from datetime import datetime
-import pickle
 import numpy as np
-import os
 
 app = Flask(__name__)
 
-# ---------------------------
-# Variables globales
-# ---------------------------
-MODEL_PATH = os.path.join(os.path.dirname(__file__), "models", "model.pkl")
-SCALER_PATH = os.path.join(os.path.dirname(__file__), "models", "scaler.pkl")
+# =====================
+# CHARGEMENT DU MODELE
+# =====================
+MODEL_PATH = Path(__file__).parent / "model/iris_rf_model.joblib"
 
-model = None
-scaler = None
-classes = ['Setosa', 'Versicolor', 'Virginica']
+model_loaded = False
+model_data = {}
 
-# ---------------------------
-# Chargement du modèle
-# ---------------------------
-def load_model():
-    global model, scaler
-    try:
-        with open(MODEL_PATH, 'rb') as f:
-            model = pickle.load(f)
-        with open(SCALER_PATH, 'rb') as f:
-            scaler = pickle.load(f)
-        print("Model loaded")
-    except Exception as e:
-        print(f"Error loading model: {e}")
-        model = None
-        scaler = None
+try:
+    if MODEL_PATH.exists():
+        model_data = joblib.load(MODEL_PATH)
+        model_loaded = True
+    else:
+        print(f"[ERROR] Model file not found: {MODEL_PATH}")
+except Exception as e:
+    print(f"[ERROR] Failed to load model: {e}")
 
-load_model()
+model = model_data.get("model")
+scaler = model_data.get("scaler")
+class_names = ['Setosa', 'Versicolor', 'Virginica']
 
-# ---------------------------
-# Endpoints
-# ---------------------------
-
+# =====================
+# ENDPOINT HEALTH
+# =====================
 @app.route("/health", methods=["GET"])
 def health():
     return jsonify({
         "status": "healthy",
-        "model_loaded": model is not None,
+        "model_loaded": model_loaded,
         "timestamp": datetime.utcnow().isoformat()
-    }), 200
+    })
 
-@app.route("/predict", methods=["POST"])
-def predict():
-    if model is None or scaler is None:
-        return jsonify({"error": "Model not loaded"}), 503
-
-    data = request.get_json()
-    features = data.get("features")
-    if features is None:
-        return jsonify({"error": "Missing 'features' key"}), 400
-
-    if not isinstance(features, list) or len(features) != 4:
-        return jsonify({"error": "Invalid number of features"}), 400
-
-    try:
-        features = np.array(features, dtype=float).reshape(1, -1)
-        features_scaled = scaler.transform(features)
-        probs = model.predict_proba(features_scaled)[0]
-        class_idx = int(model.predict(features_scaled)[0])
-        prediction = classes[class_idx]
-        return jsonify({
-            "prediction": prediction,
-            "class_id": class_idx,
-            "confidence": float(max(probs)),
-            "probabilities": {classes[i]: float(probs[i]) for i in range(len(classes))},
-            "timestamp": datetime.utcnow().isoformat()
-        }), 200
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
-
+# =====================
+# ENDPOINT INFO
+# =====================
 @app.route("/info", methods=["GET"])
 def info():
     return jsonify({
         "app_name": "Iris Classification API",
-        "model_type": "Random Forest",
-        "classes": classes,
+        "model_type": type(model).__name__ if model else "Unknown",
+        "classes": class_names,
         "endpoints": ["/health", "/predict", "/info"]
-    }), 200
+    })
 
-# ---------------------------
-# Gestion des erreurs
-# ---------------------------
-@app.errorhandler(404)
-def not_found(e):
-    return jsonify({"error": "Not found"}), 404
+# =====================
+# ENDPOINT PREDICT
+# =====================
+@app.route("/predict", methods=["POST"])
+def predict():
+    if not model_loaded:
+        return jsonify({"error": "Model not loaded"}), 503
 
-@app.errorhandler(405)
-def method_not_allowed(e):
-    return jsonify({"error": "Method not allowed"}), 405
+    data = request.get_json()
+    if not data or "features" not in data:
+        return jsonify({"error": "Missing features"}), 400
 
-# ---------------------------
-# Main
-# ---------------------------
+    features = data["features"]
+    if len(features) != 4:
+        return jsonify({"error": "Wrong number of features"}), 400
+
+    try:
+        X = np.array(features).reshape(1, -1)
+        X_scaled = scaler.transform(X)
+        probs = model.predict_proba(X_scaled)[0]
+        class_id = int(np.argmax(probs))
+        prediction = class_names[class_id]
+        prob_dict = {class_names[i]: float(probs[i]) for i in range(len(class_names))}
+        confidence = float(probs[class_id])
+    except Exception as e:
+        return jsonify({"error": f"Prediction failed: {e}"}), 500
+
+    return jsonify({
+        "prediction": prediction,
+        "class_id": class_id,
+        "confidence": confidence,
+        "probabilities": prob_dict,
+        "timestamp": datetime.utcnow().isoformat()
+    })
+
+# =====================
+# MAIN
+# =====================
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000)

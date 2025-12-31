@@ -1,150 +1,57 @@
-"""
-api/model_loader.py
-Gère le chargement et l'utilisation des modèles ML
-"""
+# api/model_loader.py
 
+import os
 import joblib
-import logging
-from pathlib import Path
-from typing import Optional, Tuple
 import numpy as np
+import logging
 
 logger = logging.getLogger(__name__)
 
-# Chemins des fichiers modèles
-MODEL_DIR = Path(__file__).parent.parent / "/app/model"
-MODEL_PATH = MODEL_DIR /"/app/model/model.pkl"
-SCALER_PATH = MODEL_DIR / "/app/model/scaler.pkl"
-
 class ModelLoader:
-    """Gère le chargement et la prédiction des modèles ML (Singleton)"""
-
-    _instance = None
-
-    def __new__(cls):
-        """Implémente le singleton pattern"""
-        if cls._instance is None:
-            cls._instance = super(ModelLoader, cls).__new__(cls)
-            cls._instance._initialize()
-        return cls._instance
-
-    def _initialize(self):
-        """Initialise les attributs"""
+    def __init__(self):
         self.model = None
         self.scaler = None
         self.is_loaded = False
-        self.error_message = None
 
-    def load_models(self) -> bool:
-        """
-        Charge les modèles ML
-
-        Returns:
-            bool: True si succès, False sinon
-        """
+    def load_models(self):
+        """Charge model.pkl et scaler.pkl depuis le dossier models"""
         try:
-            # Vérifier que les fichiers existent
-            if not MODEL_PATH.exists():
-                raise FileNotFoundError(f"Modèle non trouvé : {MODEL_PATH}")
+            project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
+            model_dir = os.path.join(project_root, 'models')
 
-            if not SCALER_PATH.exists():
-                raise FileNotFoundError(f"Scaler non trouvé : {SCALER_PATH}")
+            model_path = os.path.join(model_dir, 'model.pkl')
+            scaler_path = os.path.join(model_dir, 'scaler.pkl')
 
-            # Charger le modèle
-            logger.info(f"Chargement du modèle depuis {MODEL_PATH}")
-            self.model = joblib.load(MODEL_PATH)
-            logger.info("✓ Modèle chargé avec succès")
+            if not os.path.exists(model_path) or not os.path.exists(scaler_path):
+                logger.warning("⚠️ Fichiers de modèles non trouvés dans %s", model_dir)
+                return False
 
-            # Charger le scaler
-            logger.info(f"Chargement du scaler depuis {SCALER_PATH}")
-            self.scaler = joblib.load(SCALER_PATH)
-            logger.info("✓ Scaler chargé avec succès")
-
+            self.model = joblib.load(model_path)
+            self.scaler = joblib.load(scaler_path)
             self.is_loaded = True
-            self.error_message = None
-
+            logger.info("✓ Modèles chargés depuis %s", model_dir)
             return True
 
-        except FileNotFoundError as e:
-            error_msg = f"Fichier modèle non trouvé : {str(e)}"
-            logger.error(error_msg)
-            self.error_message = error_msg
-            self.is_loaded = False
+        except Exception as e:
+            logger.warning("Erreur lors du chargement du modèle : %s", e)
             return False
 
-        except Exception as e:
-            error_msg = f"Erreur lors du chargement des modèles : {str(e)}"
-            logger.error(error_msg)
-            self.error_message = error_msg
-            self.is_loaded = False
-            return False
-
-    def predict(self, features: list) -> Tuple[Optional[str], Optional[dict], Optional[float]]:
-        """
-        Fait une prédiction sur les features données
-
-        Args:
-            features : Liste de 4 nombres (features Iris)
-
-        Returns:
-            Tuple : (prediction_class, probabilities_dict, confidence)
-                    ou (None, None, None) si erreur
-        """
-        try:
-            # Vérifier que les modèles sont chargés
-            if not self.is_loaded:
-                logger.error("Modèles non chargés")
-                return None, None, None
-
-            # Validation des features
-            if not isinstance(features, list) or len(features) != 4:
-                logger.error(f"Features invalides : {features}")
-                return None, None, None
-
-            # Conversion en numpy array
-            features_array = np.array(features, dtype=float).reshape(1, -1)
-
-            # Normalisation avec le scaler
-            features_scaled = self.scaler.transform(features_array)
-
-            # Prédiction
-            prediction_class = self.model.predict(features_scaled)[0]
-            probabilities = self.model.predict_proba(features_scaled)[0]
-            confidence = float(np.max(probabilities))
-
-            # Formatage des probabilités
-            iris_classes = ['Setosa', 'Versicolor', 'Virginica']
-            probs_dict = {
-                iris_classes[i]: float(probabilities[i])
-                for i in range(len(iris_classes))
-            }
-
-            prediction_name = iris_classes[prediction_class]
-
-            logger.info(f"Prédiction : {prediction_name} (confiance: {confidence:.2%})")
-
-            return prediction_name, probs_dict, confidence
-
-        except Exception as e:
-            logger.error(f"Erreur lors de la prédiction : {str(e)}")
+    def predict(self, features):
+        """Fait une prédiction et renvoie (classe, probas, confiance)"""
+        if not self.is_loaded:
             return None, None, None
 
-    def get_model_info(self) -> dict:
-        """
-        Retourne les informations sur les modèles chargés
+        try:
+            x_scaled = self.scaler.transform([features])
+            probs = self.model.predict_proba(x_scaled)[0]
+            classes = ['Setosa', 'Versicolor', 'Virginica']
+            pred_idx = int(np.argmax(probs))
+            prediction = classes[pred_idx]
+            confidence = float(probs[pred_idx])
+            return prediction, dict(zip(classes, probs)), confidence
+        except Exception as e:
+            logger.error("Erreur prediction: %s", e)
+            return None, None, None
 
-        Returns:
-            dict : Informations sur le modèle
-        """
-        return {
-            'model_loaded': self.is_loaded,
-            'model_type': type(self.model).__name__ if self.model else None,
-            'scaler_type': type(self.scaler).__name__ if self.scaler else None,
-            'error_message': self.error_message,
-            'model_path': str(MODEL_PATH),
-            'scaler_path': str(SCALER_PATH)
-        }
-
-
-# Instance globale singleton
+# Créer l'instance unique que main_app importera
 model_loader = ModelLoader()

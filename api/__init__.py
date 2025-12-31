@@ -1,8 +1,8 @@
 """
-api/__init__.py
+models/__init__.py
 Initialisation du package API
 """
 
-from .app import app
+from .main_app import app
 
 __all__ = ['app']

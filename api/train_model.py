@@ -4,31 +4,24 @@ from sklearn.ensemble import RandomForestClassifier
 from sklearn.preprocessing import StandardScaler
 import os
 
-# 1️⃣ Racine du projet PyCharm (là où se trouve 'api' et 'models')
-PROJECT_ROOT = os.path.dirname(os.path.abspath(__file__))  # si ce script est dans 'api'
-PROJECT_ROOT = os.path.join(PROJECT_ROOT, '..')            # remonte d'un niveau
-PROJECT_ROOT = os.path.abspath(PROJECT_ROOT)              # chemin absolu
-
-# 2️⃣ Chemin vers le dossier models
+# 1️⃣ Chemin vers le dossier models
+PROJECT_ROOT = os.path.dirname(os.path.abspath(__file__))  # script dans 'api'
 MODEL_DIR = os.path.join(PROJECT_ROOT, 'models')
-os.makedirs(MODEL_DIR, exist_ok=True)  # crée le dossier s'il n'existe pas
+os.makedirs(MODEL_DIR, exist_ok=True)
 
-# 3️⃣ Charger les données
+# 2️⃣ Charger les données
 X, y = load_iris(return_X_y=True)
 
-# 4️⃣ Entraîner le modèle
-clf = RandomForestClassifier()
-clf.fit(X, y)
-
-# 5️⃣ Sauvegarder le modèle et le scaler
-model_path = os.path.join(MODEL_DIR, 'model.pkl')
-joblib.dump(clf, model_path)
-
+# 3️⃣ Standardisation
 scaler = StandardScaler()
-scaler.fit(X)
-scaler_path = os.path.join(MODEL_DIR, 'scaler.pkl')
-joblib.dump(scaler, scaler_path)
+X_scaled = scaler.fit_transform(X)
 
-print(f"✅ Modèle sauvegardé dans {model_path}")
-print(f"✅ Scaler sauvegardé dans {scaler_path}")
+# 4️⃣ Entraînement RandomForest
+clf = RandomForestClassifier(random_state=42)
+clf.fit(X_scaled, y)
 
+# 5️⃣ Sauvegarde
+joblib.dump(clf, os.path.join(MODEL_DIR, 'model.pkl'))
+joblib.dump(scaler, os.path.join(MODEL_DIR, 'scaler.pkl'))
+
+print("✅ Modèle et scaler sauvegardés dans", MODEL_DIR)

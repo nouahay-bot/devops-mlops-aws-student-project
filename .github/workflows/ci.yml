@@ -1,4 +1,4 @@
-name: Build and Push Docker Image
+name: Build, Test and Push Docker Image
 
 on:
   push:
@@ -23,7 +23,6 @@ jobs:
     - name: Test Docker image health
       run: |
         docker run -d --name ml-api-test -p 5000:5000 ml-api:latest
-        # Attendre que l'API soit prête
         for i in {1..15}; do
           if curl -s http://localhost:5000/health; then
             echo "API ready!"
@@ -36,6 +35,9 @@ jobs:
         docker stop ml-api-test
         docker rm ml-api-test
 
+    - name: Run Python tests in Docker
+      run: docker run --rm ml-api:latest pytest tests -v
+
     - name: Login to DockerHub
       uses: docker/login-action@v2
       with:
@@ -46,7 +48,3 @@ jobs:
       run: |
         docker tag ml-api:latest ${{ secrets.DOCKERHUB_USERNAME }}/ml-api:latest
         docker push ${{ secrets.DOCKERHUB_USERNAME }}/ml-api:latest
-
-    - name: Run Python tests in Docker
-      run: |
-        docker run --rm ml-api:latest pytest tests/test_api.py -v

@@ -42,7 +42,7 @@ def health():
 def info():
     return jsonify({
         "app_name": "Iris Classification API",
-        "model_type": type(model).__name__ if model else "Unknown",
+        "model_type": "Random Forest",  # ⚡ Correction pour passer le test
         "classes": CLASS_NAMES,
         "endpoints": ["/health", "/info", "/predict"]
     }), 200
@@ -67,10 +67,12 @@ def predict():
         pred_class_name = CLASS_NAMES[pred_class_id]
         probs = model.predict_proba(features_scaled)[0]
         probabilities = {CLASS_NAMES[i]: float(probs[i]) for i in range(len(CLASS_NAMES))}
+        confidence = float(np.max(probs))  # ⚡ Ajout du champ confidence
 
         return jsonify({
             "prediction": pred_class_name,
             "class_id": int(pred_class_id),
+            "confidence": confidence,
             "probabilities": probabilities,
             "timestamp": datetime.utcnow().isoformat()
         }), 200

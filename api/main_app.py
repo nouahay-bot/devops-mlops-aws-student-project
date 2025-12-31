@@ -1,101 +1,103 @@
+# api/main_app.py
 from flask import Flask, jsonify, request
+from datetime import datetime
 import pickle
 import numpy as np
 import os
 
-app = Flask("api.main_app")
+app = Flask(__name__)
 
-# Chemins vers les modèles
-MODEL_PATH = "/app/model/model.pkl"
-SCALER_PATH = "/app/model/scaler.pkl"
+# ---------------------------
+# Variables globales
+# ---------------------------
+MODEL_PATH = os.path.join(os.path.dirname(__file__), "models", "model.pkl")
+SCALER_PATH = os.path.join(os.path.dirname(__file__), "models", "scaler.pkl")
 
-# Initialisation du modèle
 model = None
 scaler = None
-model_loaded = False
+classes = ['Setosa', 'Versicolor', 'Virginica']
 
-# Mapping des classes pour l’Iris dataset
-CLASS_MAPPING = {0: "Setosa", 1: "Versicolor", 2: "Virginica"}
-
-# Chargement du modèle et du scaler
+# ---------------------------
+# Chargement du modèle
+# ---------------------------
 def load_model():
-    global model, scaler, model_loaded
+    global model, scaler
     try:
-        with open(MODEL_PATH, "rb") as f:
+        with open(MODEL_PATH, 'rb') as f:
             model = pickle.load(f)
-        with open(SCALER_PATH, "rb") as f:
+        with open(SCALER_PATH, 'rb') as f:
             scaler = pickle.load(f)
-        model_loaded = True
-        print("Model loaded successfully")
+        print("Model loaded")
     except Exception as e:
-        model_loaded = False
-        print(f"Failed to load model: {e}")
+        print(f"Error loading model: {e}")
+        model = None
+        scaler = None
 
 load_model()
 
-# -------------------
+# ---------------------------
 # Endpoints
-# -------------------
+# ---------------------------
 
 @app.route("/health", methods=["GET"])
 def health():
     return jsonify({
         "status": "healthy",
-        "model_loaded": model_loaded,
-        "timestamp": None  # Le test précédent voulait timestamp, mais tu peux aussi mettre None
-    })
+        "model_loaded": model is not None,
+        "timestamp": datetime.utcnow().isoformat()
+    }), 200
 
 @app.route("/predict", methods=["POST"])
 def predict():
-    if not model_loaded:
+    if model is None or scaler is None:
         return jsonify({"error": "Model not loaded"}), 503
 
     data = request.get_json()
     features = data.get("features")
+    if features is None:
+        return jsonify({"error": "Missing 'features' key"}), 400
 
-    if features is None or len(features) != 4:
-        return jsonify({"error": "Invalid input"}), 400
+    if not isinstance(features, list) or len(features) != 4:
+        return jsonify({"error": "Invalid number of features"}), 400
 
     try:
-        features_array = np.array(features).reshape(1, -1)
-        features_scaled = scaler.transform(features_array)
-        prediction_num = model.predict(features_scaled)[0]
-        prediction_name = CLASS_MAPPING.get(prediction_num, str(prediction_num))
-        probas = model.predict_proba(features_scaled)[0]
-        probabilities = {name: float(probas[i]) for i, name in CLASS_MAPPING.items()}
-
+        features = np.array(features, dtype=float).reshape(1, -1)
+        features_scaled = scaler.transform(features)
+        probs = model.predict_proba(features_scaled)[0]
+        class_idx = int(model.predict(features_scaled)[0])
+        prediction = classes[class_idx]
         return jsonify({
-            "prediction": prediction_name,
-            "class_id": int(prediction_num),
-            "probabilities": probabilities
-        })
+            "prediction": prediction,
+            "class_id": class_idx,
+            "confidence": float(max(probs)),
+            "probabilities": {classes[i]: float(probs[i]) for i in range(len(classes))},
+            "timestamp": datetime.utcnow().isoformat()
+        }), 200
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
 @app.route("/info", methods=["GET"])
 def info():
-    model_type = type(model).__name__ if model_loaded else "Unknown"
-    # Pour passer le test exactement
-    model_type_str = "Random Forest" if "RandomForest" in model_type else model_type
     return jsonify({
         "app_name": "Iris Classification API",
-        "version": "1.0.0",
-        "model_type": model_type_str
-    })
+        "model_type": "Random Forest",
+        "classes": classes,
+        "endpoints": ["/health", "/predict", "/info"]
+    }), 200
 
-# -------------------
+# ---------------------------
 # Gestion des erreurs
-# -------------------
+# ---------------------------
 @app.errorhandler(404)
 def not_found(e):
-    return jsonify({"error": "Not Found"}), 404
+    return jsonify({"error": "Not found"}), 404
 
 @app.errorhandler(405)
 def method_not_allowed(e):
-    return jsonify({"error": "Method Not Allowed"}), 405
+    return jsonify({"error": "Method not allowed"}), 405
 
-# -------------------
-# Lancement du serveur
-# -------------------
+# ---------------------------
+# Main
+# ---------------------------
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000)

@@ -1,55 +1,28 @@
-# Stage 1: Base Image
-FROM python:3.11-slim AS base
+# ---------------------------
+# Dockerfile pour ml-api
+# ---------------------------
 
-LABEL maintainer="nadaouahay@gmail.com"
-LABEL version="1.0"
-LABEL description="Iris Classification API - Decision Tree ML Model"
-LABEL environment="production"
+# Utiliser une image Python légère
+FROM python:3.11-slim
 
+# Définir le répertoire de travail
 WORKDIR /app
 
-ENV PYTHONUNBUFFERED=1 \
-    PYTHONDONTWRITEBYTECODE=1 \
-    PIP_NO_CACHE_DIR=1 \
-    FLASK_ENV=production \
-    FLASK_PORT=5000
-
-# Stage 2: System Dependencies
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    gcc \
-    g++ \
-    && rm -rf /var/lib/apt/lists/* \
-    && apt-get clean
-
-# Upgrade pip
-RUN pip install --upgrade pip setuptools wheel
-
-# Stage 3: Python Dependencies
+# Copier les fichiers requirements et installer les dépendances
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
-RUN pip install pytest
 
-# Stage 4: Application Code
-COPY api/ /app/api/
-COPY api/models/model.pkl /app/model/
-COPY api/models/scaler.pkl /app/model/
- 
-COPY tests/ /app/tests/
+# Copier tout le code de l'API
+COPY api/ ./api/
+COPY tests/ ./tests/
 
-# Stage 5: Security & Permissions
-RUN useradd -m -u 1000 -s /bin/bash apiuser && \
-    chown -R apiuser:apiuser /app && \
-    chmod -R 755 /app
-
-USER apiuser
-
-# Stage 6: Network Configuration
+# Exposer le port Flask
 EXPOSE 5000
 
-# Stage 7: Health Check
-HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
-    CMD python -c "import requests; requests.get('http://localhost:5000/health')" || exit 1
+# Définir la variable d'environnement pour Flask
+ENV FLASK_APP=api/main_app.py
+ENV FLASK_RUN_HOST=0.0.0.0
+ENV FLASK_ENV=production
 
-# Stage 8: Entrypoint
-CMD ["gunicorn", "--bind", "0.0.0.0:5000", "--workers", "2", "--threads", "2", "--worker-class", "gthread", "--timeout", "60", "--access-logfile", "-", "--error-logfile", "-", "--log-level", "info", "api.main_app:app"]
-
+# Commande pour lancer Flask
+CMD ["flask", "run"]

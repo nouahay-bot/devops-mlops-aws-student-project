@@ -9,24 +9,26 @@ app = Flask(__name__)
 # =====================================================
 # CONFIGURATION DU MODELE
 # =====================================================
-MODEL_PATH = os.path.join("api", "model", "iris_rf_model.pkl")
+MODEL_PATH = os.path.join("api", "model", "model.pkl")
+SCALER_PATH = os.path.join("api", "model", "scaler.pkl")
 CLASSES = ["Setosa", "Versicolor", "Virginica"]
 
 model = None
+scaler = None
 app.config['MODEL_LOADED'] = False
 
-# Chargement du modèle au démarrage
-def load_model():
-    global model
+def load_model_and_scaler():
+    global model, scaler
     try:
         model = joblib.load(MODEL_PATH)
+        scaler = joblib.load(SCALER_PATH)
         app.config['MODEL_LOADED'] = True
-        print("Modèle chargé avec succès.")
+        print("Modèle et scaler chargés avec succès.")
     except Exception as e:
-        print("Erreur chargement modèle:", e)
+        print("Erreur chargement modèle/scaler:", e)
         app.config['MODEL_LOADED'] = False
 
-load_model()
+load_model_and_scaler()
 
 # =====================================================
 # ENDPOINT /health
@@ -69,13 +71,14 @@ def predict():
 
     try:
         features_array = np.array([features], dtype=float)
+        features_scaled = scaler.transform(features_array)
     except Exception:
         return jsonify({"error": "Features must be numeric"}), 400
 
     # Prédiction
-    pred_class_id = int(model.predict(features_array)[0])
+    pred_class_id = int(model.predict(features_scaled)[0])
     pred_class_name = CLASSES[pred_class_id]
-    pred_proba = model.predict_proba(features_array)[0]
+    pred_proba = model.predict_proba(features_scaled)[0]
     probabilities = {CLASSES[i]: float(pred_proba[i]) for i in range(len(CLASSES))}
     confidence = float(np.max(pred_proba))
 

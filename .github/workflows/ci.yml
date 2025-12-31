@@ -20,7 +20,7 @@ jobs:
     - name: Build Docker image
       run: docker build -t ml-api:latest .
 
-    - name: Test Docker image
+    - name: Test Docker image health
       run: |
         docker run -d --name ml-api-test -p 5000:5000 ml-api:latest
         # Attendre que l'API soit prête

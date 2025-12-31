@@ -38,7 +38,7 @@ RUN pip install --upgrade pip setuptools wheel
 COPY requirements.txt .
 
 RUN pip install --no-cache-dir -r requirements.txt
-
+RUN pip install pytest
 
 # Stage 4: Application Code
 # ============================================================================

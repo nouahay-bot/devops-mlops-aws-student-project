@@ -1,0 +1,14 @@
+from sklearn.datasets import load_iris
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.preprocessing import StandardScaler
+import joblib
+
+iris = load_iris()
+X, y = iris.data, iris.target
+
+scaler = StandardScaler().fit(X)
+X_scaled = scaler.transform(X)
+clf = RandomForestClassifier()
+clf.fit(X_scaled, y)
+
+joblib.dump({"model": clf, "scaler": scaler}, "iris_rf_model.joblib")

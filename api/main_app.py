@@ -1,97 +1,90 @@
-from flask import Flask, jsonify, request
+# api/main_app.py
+from flask import Flask, request, jsonify
 import joblib
-import numpy as np
-from datetime import datetime
 import os
+from datetime import datetime
 
 app = Flask(__name__)
 
-# =====================================================
-# CONFIGURATION DU MODELE
-# =====================================================
-MODEL_PATH = os.path.join("api", "model", "model.pkl")
-SCALER_PATH = os.path.join("api", "model", "scaler.pkl")
-CLASSES = ["Setosa", "Versicolor", "Virginica"]
+# =========================
+# Chemins vers le modèle
+# =========================
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+MODEL_DIR = os.path.join(BASE_DIR, 'models')
 
-model = None
-scaler = None
-app.config['MODEL_LOADED'] = False
+MODEL_PATH = os.path.join(MODEL_DIR, 'model.pkl')
+SCALER_PATH = os.path.join(MODEL_DIR, 'scaler.pkl')
 
-def load_model_and_scaler():
-    global model, scaler
-    try:
-        model = joblib.load(MODEL_PATH)
-        scaler = joblib.load(SCALER_PATH)
-        app.config['MODEL_LOADED'] = True
-        print("Modèle et scaler chargés avec succès.")
-    except Exception as e:
-        print("Erreur chargement modèle/scaler:", e)
-        app.config['MODEL_LOADED'] = False
+# =========================
+# Chargement du modèle et du scaler
+# =========================
+try:
+    model = joblib.load(MODEL_PATH)
+    scaler = joblib.load(SCALER_PATH)
+    MODEL_LOADED = True
+except Exception as e:
+    print(f"⚠️ Erreur chargement modèle ou scaler : {e}")
+    model = None
+    scaler = None
+    MODEL_LOADED = False
 
-load_model_and_scaler()
+CLASS_NAMES = ['Setosa', 'Versicolor', 'Virginica']
 
-# =====================================================
-# ENDPOINT /health
-# =====================================================
+# =========================
+# Endpoints
+# =========================
+
 @app.route('/health', methods=['GET'])
 def health():
     return jsonify({
         "status": "healthy",
-        "model_loaded": app.config.get('MODEL_LOADED', False),
+        "model_loaded": MODEL_LOADED,
         "timestamp": datetime.utcnow().isoformat()
     })
 
-# =====================================================
-# ENDPOINT /info
-# =====================================================
+
 @app.route('/info', methods=['GET'])
 def info():
     return jsonify({
         "app_name": "Iris Classification API",
-        "model_type": type(model).__name__ if model else "Unknown",
-        "classes": CLASSES,
-        "endpoints": ["/health", "/predict", "/info"]
+        "model_type": "Random Forest",
+        "classes": CLASS_NAMES,
+        "endpoints": ["/predict", "/health", "/info"]
     })
 
-# =====================================================
-# ENDPOINT /predict
-# =====================================================
+
 @app.route('/predict', methods=['POST'])
 def predict():
-    if not app.config.get('MODEL_LOADED', False):
+    if not MODEL_LOADED:
         return jsonify({"error": "Model not loaded"}), 503
 
     data = request.get_json()
-    if not data or 'features' not in data:
-        return jsonify({"error": "Missing 'features' in request"}), 400
+    features = data.get('features')
 
-    features = data['features']
-    if not isinstance(features, list) or len(features) != 4:
-        return jsonify({"error": "Features must be a list of 4 numeric values"}), 400
+    # Validation simple
+    if not features or len(features) != 4:
+        return jsonify({"error": "Invalid input, expected 4 features"}), 400
 
     try:
-        features_array = np.array([features], dtype=float)
-        features_scaled = scaler.transform(features_array)
-    except Exception:
-        return jsonify({"error": "Features must be numeric"}), 400
+        # Transformation avec scaler
+        features_scaled = scaler.transform([features])
+        class_id = int(model.predict(features_scaled)[0])
+        probabilities = model.predict_proba(features_scaled)[0]
 
-    # Prédiction
-    pred_class_id = int(model.predict(features_scaled)[0])
-    pred_class_name = CLASSES[pred_class_id]
-    pred_proba = model.predict_proba(features_scaled)[0]
-    probabilities = {CLASSES[i]: float(pred_proba[i]) for i in range(len(CLASSES))}
-    confidence = float(np.max(pred_proba))
+        return jsonify({
+            "prediction": CLASS_NAMES[class_id],
+            "class_id": class_id,
+            "confidence": float(max(probabilities)),
+            "probabilities": dict(zip(CLASS_NAMES, probabilities)),
+            "timestamp": datetime.utcnow().isoformat()
+        })
 
-    return jsonify({
-        "prediction": pred_class_name,
-        "class_id": pred_class_id,
-        "confidence": confidence,
-        "probabilities": probabilities,
-        "timestamp": datetime.utcnow().isoformat()
-    })
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
-# =====================================================
-# MAIN
-# =====================================================
-if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=5000)
+
+# =========================
+# Run
+# =========================
+if __name__ == '__main__':
+    app.run(host='0.0.0.0', port=5000)

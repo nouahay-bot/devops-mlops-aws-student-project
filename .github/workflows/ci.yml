@@ -23,9 +23,18 @@ jobs:
     - name: Test Docker image
       run: |
         docker run -d --name ml-api-test -p 5000:5000 ml-api:latest
-        sleep 5
-        curl http://localhost:5000/health
+        # Attendre que l'API soit prête
+        for i in {1..15}; do
+          if curl -s http://localhost:5000/health; then
+            echo "API ready!"
+            break
+          else
+            echo "Waiting for API..."
+            sleep 2
+          fi
+        done
         docker stop ml-api-test
+        docker rm ml-api-test
 
     - name: Login to DockerHub
       uses: docker/login-action@v2
@@ -43,4 +52,3 @@ jobs:
         python -m pip install --upgrade pip
         pip install pytest
         pytest tests/test_api.py -v
-

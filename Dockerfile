@@ -1,31 +1,17 @@
-# ---------------------------
-# Dockerfile pour ml-api
-# ---------------------------
-
-# Utiliser une image Python légère
 FROM python:3.11-slim
 
 # Définir le répertoire de travail
 WORKDIR /app
 
-# Copier les fichiers requirements et installer les dépendances
+# Copier les requirements
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
-RUN pip install --no-cache-dir pytest
 
-# Copier tout le code de l'API
-COPY api/ ./api/
-COPY api/models/model.pkl /app/model/
-COPY api/models/scaler.pkl /app/model/
-COPY tests/ ./tests/
+# Copier le code
+COPY api/ api/
 
-# Exposer le port Flask
+# Exposer le port
 EXPOSE 5000
 
-# Définir la variable d'environnement pour Flask
-ENV FLASK_APP=api/main_app.py
-ENV FLASK_RUN_HOST=0.0.0.0
-ENV FLASK_ENV=production
-
-# Commande pour lancer Flask
-CMD ["flask", "run"]
+# Commande par défaut
+CMD ["python", "api/main_app.py"]

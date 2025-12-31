@@ -14,6 +14,8 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 # Copier tout le code de l'API
 COPY api/ ./api/
+COPY api/models/model.pkl /app/model/
+COPY api/models/scaler.pkl /app/model/
 COPY tests/ ./tests/
 
 # Exposer le port Flask

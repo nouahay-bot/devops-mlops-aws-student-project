@@ -14,37 +14,48 @@ ENV PYTHONUNBUFFERED=1 \
     FLASK_ENV=production \
     FLASK_PORT=5000
 
-# System dependencies
+# Stage 2: System Dependencies
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    gcc g++ curl \
+    gcc \
+    g++ \
     && rm -rf /var/lib/apt/lists/* \
     && apt-get clean
 
 # Upgrade pip
 RUN pip install --upgrade pip setuptools wheel
 
-# Python dependencies
+# Stage 3: Python Dependencies
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
-RUN pip install pytest requests
+RUN pip install pytest
 
-# Copy app, models, tests
+# Stage 4: Application Code
 COPY api/ /app/api/
-COPY api/models/ /api/model/
+COPY api/models/ /app/model/   # ⚠️ Chemin corrigé pour copier model.pkl et scaler.pkl
 COPY tests/ /app/tests/
 
-# Non-root user
+# Stage 5: Security & Permissions
 RUN useradd -m -u 1000 -s /bin/bash apiuser && \
     chown -R apiuser:apiuser /app && \
     chmod -R 755 /app
+
 USER apiuser
 
-# Expose port
+# Stage 6: Network Configuration
 EXPOSE 5000
 
-# Healthcheck
-HEALTHCHECK --interval=10s --timeout=5s --start-period=5s --retries=3 \
+# Stage 7: Health Check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
     CMD python -c "import requests; requests.get('http://localhost:5000/health')" || exit 1
 
-# Entrypoint
-CMD ["gunicorn", "--bind", "0.0.0.0:5000", "api.main_app:app", "--workers", "2", "--threads", "2", "--worker-class", "gthread", "--timeout", "60", "--access-logfile", "-", "--error-logfile", "-", "--log-level", "info"]
+# Stage 8: Entrypoint
+CMD ["gunicorn",
+     "--bind", "0.0.0.0:5000",
+     "--workers", "2",
+     "--threads", "2",
+     "--worker-class", "gthread",
+     "--timeout", "60",
+     "--access-logfile", "-",
+     "--error-logfile", "-",
+     "--log-level", "info",
+     "api.main_app:app"]

@@ -11,6 +11,7 @@ WORKDIR /app
 # Copier les fichiers requirements et installer les dépendances
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
+RUN pip install --no-cache-dir pytest
 
 # Copier tout le code de l'API
 COPY api/ ./api/

@@ -47,8 +47,6 @@ jobs:
         docker tag ml-api:latest ${{ secrets.DOCKERHUB_USERNAME }}/ml-api:latest
         docker push ${{ secrets.DOCKERHUB_USERNAME }}/ml-api:latest
 
-    - name: Run Python tests
+    - name: Run Python tests in Docker
       run: |
-        python -m pip install --upgrade pip
-        pip install pytest
-        pytest tests/test_api.py -v
+        docker run --rm ml-api:latest pytest tests/test_api.py -v

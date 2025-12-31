@@ -44,6 +44,7 @@ RUN pip install pytest
 # ============================================================================
 COPY api/ /app/api/
 COPY model/ /app/model/
+COPY tests/ /app/tests/
 
 
 # Stage 5: Security & Permissions
